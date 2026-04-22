@@ -4,7 +4,7 @@ import asyncio
 from telegram import Bot
 
 TOKEN = "8749522431:AAHycEzpn-ydZEOU20TDU1uRklXoSj0pMBs"
-CHAT_ID = "1003297925821"
+CHAT_ID = "-1003297925821"
 NEWS_API = "52f409a5a258484a9d980fdc66bcec31"
 
 bot = Bot(token=TOKEN)
