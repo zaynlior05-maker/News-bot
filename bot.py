@@ -120,7 +120,7 @@ async def send_news():
 async def main():
     while True:
         await send_news()
-        await asyncio.sleep(1800)
+        await asyncio.sleep(30)
 
 
 if __name__ == "__main__":
