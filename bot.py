@@ -1,9 +1,8 @@
 import os
-import json
 import asyncio
 import feedparser
 import random
-import requests
+import hashlib
 from datetime import datetime
 from telegram import Bot
 from telethon import TelegramClient, events
@@ -23,30 +22,27 @@ SOURCE_CHANNEL = "DWCusers"
 POST_HOURS     = [8, 11, 14, 17, 20, 23, 2, 5]
 
 # ─────────────────────────────────────────────
-# POSTED IDS — saved to file so restarts don't repeat
+# DUPLICATE PREVENTION — in memory + title hash
+# keeps last 200 titles so restarts don't repeat
 # ─────────────────────────────────────────────
 
-POSTED_FILE = "/app/posted_ids.json"
+posted_hashes = set()
 post_lock = asyncio.Lock()
 
-def load_posted() -> set:
-    try:
-        with open(POSTED_FILE, "r") as f:
-            return set(json.load(f))
-    except:
-        return set()
+def make_hash(title: str) -> str:
+    """Short hash of title to identify duplicates."""
+    return hashlib.md5(title.lower().strip().encode()).hexdigest()
 
-def save_posted(ids: set):
-    try:
-        # Keep only last 500 to avoid file growing forever
-        recent = list(ids)[-500:]
-        with open(POSTED_FILE, "w") as f:
-            json.dump(recent, f)
-    except Exception as e:
-        print(f"[Save error] {e}")
+def already_posted(title: str) -> bool:
+    return make_hash(title) in posted_hashes
 
-posted_ids = load_posted()
-print(f"[Startup] Loaded {len(posted_ids)} previously posted articles")
+def mark_posted(title: str):
+    posted_hashes.add(make_hash(title))
+    # Keep only last 200
+    if len(posted_hashes) > 200:
+        oldest = list(posted_hashes)[:50]
+        for h in oldest:
+            posted_hashes.discard(h)
 
 # ─────────────────────────────────────────────
 # KEYWORDS
@@ -89,11 +85,11 @@ def fetch_rekt() -> dict | None:
         entries = feed.entries[:]
         random.shuffle(entries)
         for e in entries:
-            uid = e.get("id", e.get("link", ""))
-            if uid in posted_ids:
+            title = e.get("title", "")
+            if already_posted(title):
                 continue
-            if is_relevant(e.get("title", ""), e.get("summary", "")):
-                return {"title": e["title"], "link": e.get("link", ""), "source": "Rekt.news", "uid": uid}
+            if is_relevant(title, e.get("summary", "")):
+                return {"title": title, "link": e.get("link", ""), "source": "Rekt.news"}
     except Exception as ex:
         print(f"[Rekt error] {ex}")
     return None
@@ -104,11 +100,11 @@ def fetch_cointelegraph() -> dict | None:
         entries = feed.entries[:]
         random.shuffle(entries)
         for e in entries:
-            uid = e.get("id", e.get("link", ""))
-            if uid in posted_ids:
+            title = e.get("title", "")
+            if already_posted(title):
                 continue
-            if is_relevant(e.get("title", ""), e.get("summary", "")):
-                return {"title": e["title"], "link": e.get("link", ""), "source": "CoinTelegraph", "uid": uid}
+            if is_relevant(title, e.get("summary", "")):
+                return {"title": title, "link": e.get("link", ""), "source": "CoinTelegraph"}
     except Exception as ex:
         print(f"[CoinTelegraph error] {ex}")
     return None
@@ -119,11 +115,11 @@ def fetch_coindesk() -> dict | None:
         entries = feed.entries[:]
         random.shuffle(entries)
         for e in entries:
-            uid = e.get("id", e.get("link", ""))
-            if uid in posted_ids:
+            title = e.get("title", "")
+            if already_posted(title):
                 continue
-            if is_relevant(e.get("title", ""), e.get("summary", "")):
-                return {"title": e["title"], "link": e.get("link", ""), "source": "CoinDesk", "uid": uid}
+            if is_relevant(title, e.get("summary", "")):
+                return {"title": title, "link": e.get("link", ""), "source": "CoinDesk"}
     except Exception as ex:
         print(f"[CoinDesk error] {ex}")
     return None
@@ -134,11 +130,11 @@ def fetch_theblock() -> dict | None:
         entries = feed.entries[:]
         random.shuffle(entries)
         for e in entries:
-            uid = e.get("id", e.get("link", ""))
-            if uid in posted_ids:
+            title = e.get("title", "")
+            if already_posted(title):
                 continue
-            if is_relevant(e.get("title", ""), e.get("summary", "")):
-                return {"title": e["title"], "link": e.get("link", ""), "source": "The Block", "uid": uid}
+            if is_relevant(title, e.get("summary", "")):
+                return {"title": title, "link": e.get("link", ""), "source": "The Block"}
     except Exception as ex:
         print(f"[TheBlock error] {ex}")
     return None
@@ -167,19 +163,19 @@ def format_message(article: dict) -> str:
     )
 
 # ─────────────────────────────────────────────
-# POST — locked so only 1 post happens at a time
+# POST
 # ─────────────────────────────────────────────
 
 bot = Bot(token=TOKEN)
 
-async def post_article():
+async def post_article(label: str = ""):
     async with post_lock:
         article = get_next_article()
         if not article:
-            print("[Scheduled] Nothing new found.")
+            print(f"[{label}] No new articles found.")
             return
         msg = format_message(article)
-        print(f"[POST] {article['title'][:70]}")
+        print(f"[{label}] Posting: {article['title'][:70]}")
         try:
             await bot.send_message(
                 chat_id=CHAT_ID,
@@ -187,26 +183,32 @@ async def post_article():
                 parse_mode="Markdown",
                 disable_web_page_preview=False
             )
-            # Only mark as posted AFTER successful send
-            posted_ids.add(article["uid"])
-            save_posted(posted_ids)
+            mark_posted(article["title"])
         except Exception as e:
             print(f"[Post error] {e}")
 
 # ─────────────────────────────────────────────
-# SCHEDULE
+# SCHEDULE — skips startup post if current hour
+# is already a scheduled hour (prevents double)
 # ─────────────────────────────────────────────
 
 async def schedule_loop():
     posted_this_hour = set()
-    print("[Startup] Posting first article now...")
-    await post_article()
+    now = datetime.now()
+
+    # Only post on startup if current hour is NOT a scheduled hour
+    if now.hour not in POST_HOURS:
+        print("[Startup] Posting first article...")
+        await post_article("Startup")
+    else:
+        posted_this_hour.add(now.hour)
+        print("[Startup] Skipping startup post — scheduled hour will handle it")
+
     while True:
         now = datetime.now()
         hr  = now.hour
         if hr in POST_HOURS and hr not in posted_this_hour:
-            print(f"[{now.strftime('%H:%M')}] Scheduled post...")
-            await post_article()
+            await post_article(f"Scheduled {now.strftime('%H:%M')}")
             posted_this_hour.add(hr)
         if hr == 0 and len(posted_this_hour) > 1:
             posted_this_hour.clear()
@@ -256,6 +258,9 @@ async def dwc_handler(event):
     if not should_repost(text):
         print(f"[DWC SKIP] {text[:50]!r}")
         return
+    if already_posted(text[:100]):
+        print(f"[DWC DUPLICATE] Skipping already posted")
+        return
     cleaned = clean_text(text)
     print(f"[DWC POST] {cleaned[:60]!r}")
     try:
@@ -268,6 +273,7 @@ async def dwc_handler(event):
             )
         else:
             await bot.send_message(chat_id=CHAT_ID, text=cleaned, parse_mode="Markdown")
+        mark_posted(text[:100])
     except Exception as e:
         print(f"[DWC error] {e}")
         try:
