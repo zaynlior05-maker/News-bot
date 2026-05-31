@@ -9,7 +9,7 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
 # ─────────────────────────────────────────────
-# CONFIG FROM RAILWAY VARIABLES
+# CONFIG
 # ─────────────────────────────────────────────
 
 TOKEN          = os.environ["TOKEN"]
@@ -22,27 +22,45 @@ SOURCE_CHANNEL = "DWCusers"
 POST_HOURS     = [8, 11, 14, 17, 20, 23, 2, 5]
 
 # ─────────────────────────────────────────────
-# DUPLICATE PREVENTION — in memory + title hash
-# keeps last 200 titles so restarts don't repeat
+# DUPLICATE PREVENTION
 # ─────────────────────────────────────────────
 
-posted_hashes = set()
+posted_titles = []   # stores last 100 cleaned titles
 post_lock = asyncio.Lock()
 
-def make_hash(title: str) -> str:
-    """Short hash of title to identify duplicates."""
-    return hashlib.md5(title.lower().strip().encode()).hexdigest()
+def clean_title(title: str) -> set:
+    """Turn title into a set of important words for comparison."""
+    skip_words = {
+        "a", "an", "the", "is", "in", "on", "at", "to", "for",
+        "of", "and", "or", "with", "from", "by", "over", "after",
+        "using", "via", "new", "says", "amid", "its", "as", "how",
+        "that", "this", "was", "are", "been", "has", "have", "into",
+        "not", "but", "be", "it", "he", "she", "we", "they",
+    }
+    words = title.lower().replace("'", "").replace(",", "").replace(".", "")
+    return set(w for w in words.split() if w not in skip_words and len(w) > 2)
 
-def already_posted(title: str) -> bool:
-    return make_hash(title) in posted_hashes
+def is_duplicate(title: str) -> bool:
+    """Returns True if this title is too similar to a recently posted one."""
+    new_words = clean_title(title)
+    if not new_words:
+        return False
+    for old_title in posted_titles:
+        old_words = clean_title(old_title)
+        if not old_words:
+            continue
+        # Overlap score: shared words / smaller set
+        shared = len(new_words & old_words)
+        smaller = min(len(new_words), len(old_words))
+        if smaller > 0 and shared / smaller >= 0.6:
+            print(f"[DUPLICATE] '{title[:50]}' too similar to '{old_title[:50]}'")
+            return True
+    return False
 
 def mark_posted(title: str):
-    posted_hashes.add(make_hash(title))
-    # Keep only last 200
-    if len(posted_hashes) > 200:
-        oldest = list(posted_hashes)[:50]
-        for h in oldest:
-            posted_hashes.discard(h)
+    posted_titles.append(title)
+    if len(posted_titles) > 100:
+        posted_titles.pop(0)
 
 # ─────────────────────────────────────────────
 # KEYWORDS
@@ -86,8 +104,7 @@ def fetch_rekt() -> dict | None:
         random.shuffle(entries)
         for e in entries:
             title = e.get("title", "")
-            if already_posted(title):
-                continue
+            if is_duplicate(title): continue
             if is_relevant(title, e.get("summary", "")):
                 return {"title": title, "link": e.get("link", ""), "source": "Rekt.news"}
     except Exception as ex:
@@ -101,8 +118,7 @@ def fetch_cointelegraph() -> dict | None:
         random.shuffle(entries)
         for e in entries:
             title = e.get("title", "")
-            if already_posted(title):
-                continue
+            if is_duplicate(title): continue
             if is_relevant(title, e.get("summary", "")):
                 return {"title": title, "link": e.get("link", ""), "source": "CoinTelegraph"}
     except Exception as ex:
@@ -116,8 +132,7 @@ def fetch_coindesk() -> dict | None:
         random.shuffle(entries)
         for e in entries:
             title = e.get("title", "")
-            if already_posted(title):
-                continue
+            if is_duplicate(title): continue
             if is_relevant(title, e.get("summary", "")):
                 return {"title": title, "link": e.get("link", ""), "source": "CoinDesk"}
     except Exception as ex:
@@ -131,8 +146,7 @@ def fetch_theblock() -> dict | None:
         random.shuffle(entries)
         for e in entries:
             title = e.get("title", "")
-            if already_posted(title):
-                continue
+            if is_duplicate(title): continue
             if is_relevant(title, e.get("summary", "")):
                 return {"title": title, "link": e.get("link", ""), "source": "The Block"}
     except Exception as ex:
@@ -188,21 +202,18 @@ async def post_article(label: str = ""):
             print(f"[Post error] {e}")
 
 # ─────────────────────────────────────────────
-# SCHEDULE — skips startup post if current hour
-# is already a scheduled hour (prevents double)
+# SCHEDULE
 # ─────────────────────────────────────────────
 
 async def schedule_loop():
     posted_this_hour = set()
     now = datetime.now()
-
-    # Only post on startup if current hour is NOT a scheduled hour
     if now.hour not in POST_HOURS:
         print("[Startup] Posting first article...")
         await post_article("Startup")
     else:
         posted_this_hour.add(now.hour)
-        print("[Startup] Skipping startup post — scheduled hour will handle it")
+        print("[Startup] Skipping — scheduled hour will handle it")
 
     while True:
         now = datetime.now()
@@ -258,8 +269,8 @@ async def dwc_handler(event):
     if not should_repost(text):
         print(f"[DWC SKIP] {text[:50]!r}")
         return
-    if already_posted(text[:100]):
-        print(f"[DWC DUPLICATE] Skipping already posted")
+    if is_duplicate(text[:100]):
+        print(f"[DWC DUPLICATE] Skipping")
         return
     cleaned = clean_text(text)
     print(f"[DWC POST] {cleaned[:60]!r}")
