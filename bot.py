@@ -1,3 +1,4 @@
+import os
 import requests
 import asyncio
 import feedparser
@@ -8,20 +9,15 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
 # ─────────────────────────────────────────────
-# ⚠️ FILL IN THESE 5 THINGS ONLY
+# READS FROM RAILWAY ENVIRONMENT VARIABLES
 # ─────────────────────────────────────────────
 
-TOKEN          = "8749522431:AAHycEzpn-ydZEOU20TDU1uRklXoSj0pMBs"
-CHAT_ID        = "-1003297925821"
-API_ID         = 32999267
-API_HASH       = "b5e284bcd42eeca07957dc118b59382a"
-SESSION_STRING = "1AZWarzcBu2t4j85CQbnMUuyIS5PqPfRNv8aN3GxTYTTzGqjCjRAZ6FwA8FxaeZxVMpDKz-aZqCSWKLtrbQKE1cXe4aTGvSxS0smmP_0OH5LIk6FCp6DuP-rjLmooY2i8cgkAHWSD6-QCXY-hLjyQpnTwKw8mvpnXg2sT_kAzWYclVhzzDOgJGrdleWQiy_euUiALAYFYwL8DUuNo5PFb0LrI3n5qU7Tqjf-d7ZoUtRWMQth12IcsBR1MmnFRaTYc75EYyRDHsDDv8xELVQhJdsnygSmxIVas5fKtgDobLW-hNDuEBgcWsGq3UMEswb7bg_2KacYsWCY171f6BlolXs3N-DrCBk0="SESSION_STRING = "1AZWarzcBu2t4j85CQbnMUuyIS5PqPfRNv8aN3GxTYTTzGqjCjRAZ6FwA8FxaeZxVMpDKz-aZqCSWKLtrbQKE1cXe4aTGvSxS0smmP_0OH5LIk6FCp6DuP-rjLmooY2i8cgkAHWSD6-QCXY-hLjyQpnTwKw8mvpnXg2sT_kAzWYclVhzzDOgJGrdleWQiy_euUiALAYFYwL8DUuNo5PFb0LrI3n5qU7Tqjf-d7ZoUtRWMQth12IcsBR1MmnFRaTYc75EYyRDHsDDv8xELVQhJdsnygSmxIVas5fKtgDobLW-hNDuEBgcWsGq3UMEswb7bg_2KacYsWCY171f6BlolXs3N-DrCBk0="
-
-# ─────────────────────────────────────────────
-# YOUR HANDLES
-# ─────────────────────────────────────────────
-
-YOUR_HANDLE    = "HeisenUpdates | @HeisenCE0"
+TOKEN          = os.environ["TOKEN"]
+CHAT_ID        = os.environ["CHAT_ID"]
+API_ID         = int(os.environ["API_ID"])
+API_HASH       = os.environ["API_HASH"]
+SESSION_STRING = os.environ["SESSION_STRING"]
+YOUR_HANDLE    = os.environ.get("YOUR_HANDLE", "@HeisenC")
 SOURCE_CHANNEL = "DWCusers"
 POST_HOURS     = [8, 11, 14, 17, 20, 23, 2, 5]
 
@@ -57,7 +53,7 @@ def is_relevant(title: str, summary: str = "") -> bool:
     return any(kw in text for kw in KEEP_KEYWORDS)
 
 # ─────────────────────────────────────────────
-# NEWS SOURCES (all free)
+# NEWS SOURCES
 # ─────────────────────────────────────────────
 
 posted_ids = set()
@@ -136,7 +132,7 @@ def get_next_article() -> dict | None:
     return None
 
 # ─────────────────────────────────────────────
-# FORMAT MESSAGE
+# FORMAT
 # ─────────────────────────────────────────────
 
 def format_message(article: dict) -> str:
@@ -150,7 +146,7 @@ def format_message(article: dict) -> str:
     )
 
 # ─────────────────────────────────────────────
-# BOT + SCHEDULE
+# SCHEDULE
 # ─────────────────────────────────────────────
 
 bot = Bot(token=TOKEN)
