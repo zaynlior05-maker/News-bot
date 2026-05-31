@@ -13,6 +13,7 @@ from telethon import TelegramClient, events
 TOKEN          = "8749522431:AAHycEzpn-ydZEOU20TDU1uRklXoSj0pMBs"      # from @BotFather
 CHAT_ID        = "-1003297925821"       # your channel e.g. -1002xxxxxxx
 API_ID         = 32999267                    # from my.telegram.org/apps
+SESSION_STRING = "1AZWarzcBu2t4j85CQbnMUuyIS5PqPfRNv8aN3GxTYTTzGqjCjRAZ6FwA8FxaeZxVMpDKz-aZqCSWKLtrbQKE1cXe4aTGvSxS0smmP_0OH5LIk6FCp6DuP-rjLmooY2i8cgkAHWSD6-QCXY-hLjyQpnTwKw8mvpnXg2sT_kAzWYclVhzzDOgJGrdleWQiy_euUiALAYFYwL8DUuNo5PFb0LrI3n5qU7Tqjf-d7ZoUtRWMQth12IcsBR1MmnFRaTYc75EYyRDHsDDv8xELVQhJdsnygSmxIVas5fKtgDobLW-hNDuEBgcWsGq3UMEswb7bg_2KacYsWCY171f6BlolXs3N-DrCBk0="
 API_HASH       = "b5e284bcd42eeca07957dc118b59382a"      # from my.telegram.org/apps
 YOUR_HANDLE = "@HeisenUpdates | @HeisenCE0"
 
