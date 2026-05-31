@@ -1,8 +1,9 @@
+cat > /mnt/user-data/outputs/bot.py << 'ENDOFFILE'
 import os
 import asyncio
 import feedparser
 import random
-import hashlib
+import redis
 from datetime import datetime
 from telegram import Bot
 from telethon import TelegramClient, events
@@ -17,50 +18,53 @@ CHAT_ID        = os.environ["CHAT_ID"]
 API_ID         = int(os.environ["API_ID"])
 API_HASH       = os.environ["API_HASH"]
 SESSION_STRING = os.environ["SESSION_STRING"]
+REDIS_URL      = os.environ["REDIS_URL"]
 YOUR_HANDLE    = os.environ.get("YOUR_HANDLE", "@HeisenC")
 SOURCE_CHANNEL = "DWCusers"
 POST_HOURS     = [8, 11, 14, 17, 20, 23, 2, 5]
 
 # ─────────────────────────────────────────────
-# DUPLICATE PREVENTION
+# REDIS — permanent memory that never resets
 # ─────────────────────────────────────────────
 
-posted_titles = []   # stores last 100 cleaned titles
+r = redis.from_url(REDIS_URL, decode_responses=True)
 post_lock = asyncio.Lock()
+REDIS_KEY = "heisen:posted_titles"
 
-def clean_title(title: str) -> set:
-    """Turn title into a set of important words for comparison."""
-    skip_words = {
-        "a", "an", "the", "is", "in", "on", "at", "to", "for",
-        "of", "and", "or", "with", "from", "by", "over", "after",
-        "using", "via", "new", "says", "amid", "its", "as", "how",
-        "that", "this", "was", "are", "been", "has", "have", "into",
-        "not", "but", "be", "it", "he", "she", "we", "they",
-    }
-    words = title.lower().replace("'", "").replace(",", "").replace(".", "")
-    return set(w for w in words.split() if w not in skip_words and len(w) > 2)
-
-def is_duplicate(title: str) -> bool:
-    """Returns True if this title is too similar to a recently posted one."""
-    new_words = clean_title(title)
+def already_posted(title: str) -> bool:
+    """Check if this title or similar was already posted."""
+    title_clean = title.lower().strip()
+    # Check exact match first
+    if r.sismember(REDIS_KEY, title_clean):
+        return True
+    # Check word similarity against stored titles
+    new_words = set(w for w in title_clean.split() if len(w) > 3)
     if not new_words:
         return False
-    for old_title in posted_titles:
-        old_words = clean_title(old_title)
+    all_posted = r.smembers(REDIS_KEY)
+    for old in all_posted:
+        old_words = set(w for w in old.split() if len(w) > 3)
         if not old_words:
             continue
-        # Overlap score: shared words / smaller set
         shared = len(new_words & old_words)
         smaller = min(len(new_words), len(old_words))
         if smaller > 0 and shared / smaller >= 0.6:
-            print(f"[DUPLICATE] '{title[:50]}' too similar to '{old_title[:50]}'")
+            print(f"[DUPLICATE] Similar to: '{old[:50]}'")
             return True
     return False
 
 def mark_posted(title: str):
-    posted_titles.append(title)
-    if len(posted_titles) > 100:
-        posted_titles.pop(0)
+    """Save title to Redis permanently."""
+    r.sadd(REDIS_KEY, title.lower().strip())
+    # Keep set to max 500 entries
+    count = r.scard(REDIS_KEY)
+    if count > 500:
+        # Remove random old entries to keep size down
+        old = list(r.smembers(REDIS_KEY))[:100]
+        for o in old:
+            r.srem(REDIS_KEY, o)
+
+print(f"[Redis] Connected — {r.scard(REDIS_KEY)} articles remembered")
 
 # ─────────────────────────────────────────────
 # KEYWORDS
@@ -104,7 +108,7 @@ def fetch_rekt() -> dict | None:
         random.shuffle(entries)
         for e in entries:
             title = e.get("title", "")
-            if is_duplicate(title): continue
+            if already_posted(title): continue
             if is_relevant(title, e.get("summary", "")):
                 return {"title": title, "link": e.get("link", ""), "source": "Rekt.news"}
     except Exception as ex:
@@ -118,7 +122,7 @@ def fetch_cointelegraph() -> dict | None:
         random.shuffle(entries)
         for e in entries:
             title = e.get("title", "")
-            if is_duplicate(title): continue
+            if already_posted(title): continue
             if is_relevant(title, e.get("summary", "")):
                 return {"title": title, "link": e.get("link", ""), "source": "CoinTelegraph"}
     except Exception as ex:
@@ -132,7 +136,7 @@ def fetch_coindesk() -> dict | None:
         random.shuffle(entries)
         for e in entries:
             title = e.get("title", "")
-            if is_duplicate(title): continue
+            if already_posted(title): continue
             if is_relevant(title, e.get("summary", "")):
                 return {"title": title, "link": e.get("link", ""), "source": "CoinDesk"}
     except Exception as ex:
@@ -146,7 +150,7 @@ def fetch_theblock() -> dict | None:
         random.shuffle(entries)
         for e in entries:
             title = e.get("title", "")
-            if is_duplicate(title): continue
+            if already_posted(title): continue
             if is_relevant(title, e.get("summary", "")):
                 return {"title": title, "link": e.get("link", ""), "source": "The Block"}
     except Exception as ex:
@@ -213,7 +217,7 @@ async def schedule_loop():
         await post_article("Startup")
     else:
         posted_this_hour.add(now.hour)
-        print("[Startup] Skipping — scheduled hour will handle it")
+        print("[Startup] Scheduled hour — skipping startup post")
 
     while True:
         now = datetime.now()
@@ -269,7 +273,7 @@ async def dwc_handler(event):
     if not should_repost(text):
         print(f"[DWC SKIP] {text[:50]!r}")
         return
-    if is_duplicate(text[:100]):
+    if already_posted(text[:100]):
         print(f"[DWC DUPLICATE] Skipping")
         return
     cleaned = clean_text(text)
@@ -308,3 +312,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+ENDOFFILE
+echo "Done"
