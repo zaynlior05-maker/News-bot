@@ -1,15 +1,16 @@
 import os
-import requests
+import json
 import asyncio
 import feedparser
 import random
+import requests
 from datetime import datetime
 from telegram import Bot
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
 # ─────────────────────────────────────────────
-# READS FROM RAILWAY ENVIRONMENT VARIABLES
+# CONFIG FROM RAILWAY VARIABLES
 # ─────────────────────────────────────────────
 
 TOKEN          = os.environ["TOKEN"]
@@ -20,6 +21,32 @@ SESSION_STRING = os.environ["SESSION_STRING"]
 YOUR_HANDLE    = os.environ.get("YOUR_HANDLE", "@HeisenC")
 SOURCE_CHANNEL = "DWCusers"
 POST_HOURS     = [8, 11, 14, 17, 20, 23, 2, 5]
+
+# ─────────────────────────────────────────────
+# POSTED IDS — saved to file so restarts don't repeat
+# ─────────────────────────────────────────────
+
+POSTED_FILE = "/app/posted_ids.json"
+post_lock = asyncio.Lock()
+
+def load_posted() -> set:
+    try:
+        with open(POSTED_FILE, "r") as f:
+            return set(json.load(f))
+    except:
+        return set()
+
+def save_posted(ids: set):
+    try:
+        # Keep only last 500 to avoid file growing forever
+        recent = list(ids)[-500:]
+        with open(POSTED_FILE, "w") as f:
+            json.dump(recent, f)
+    except Exception as e:
+        print(f"[Save error] {e}")
+
+posted_ids = load_posted()
+print(f"[Startup] Loaded {len(posted_ids)} previously posted articles")
 
 # ─────────────────────────────────────────────
 # KEYWORDS
@@ -56,8 +83,6 @@ def is_relevant(title: str, summary: str = "") -> bool:
 # NEWS SOURCES
 # ─────────────────────────────────────────────
 
-posted_ids = set()
-
 def fetch_rekt() -> dict | None:
     try:
         feed = feedparser.parse("https://rekt.news/feed/")
@@ -68,8 +93,7 @@ def fetch_rekt() -> dict | None:
             if uid in posted_ids:
                 continue
             if is_relevant(e.get("title", ""), e.get("summary", "")):
-                posted_ids.add(uid)
-                return {"title": e["title"], "link": e.get("link", ""), "source": "Rekt.news"}
+                return {"title": e["title"], "link": e.get("link", ""), "source": "Rekt.news", "uid": uid}
     except Exception as ex:
         print(f"[Rekt error] {ex}")
     return None
@@ -84,8 +108,7 @@ def fetch_cointelegraph() -> dict | None:
             if uid in posted_ids:
                 continue
             if is_relevant(e.get("title", ""), e.get("summary", "")):
-                posted_ids.add(uid)
-                return {"title": e["title"], "link": e.get("link", ""), "source": "CoinTelegraph"}
+                return {"title": e["title"], "link": e.get("link", ""), "source": "CoinTelegraph", "uid": uid}
     except Exception as ex:
         print(f"[CoinTelegraph error] {ex}")
     return None
@@ -100,8 +123,7 @@ def fetch_coindesk() -> dict | None:
             if uid in posted_ids:
                 continue
             if is_relevant(e.get("title", ""), e.get("summary", "")):
-                posted_ids.add(uid)
-                return {"title": e["title"], "link": e.get("link", ""), "source": "CoinDesk"}
+                return {"title": e["title"], "link": e.get("link", ""), "source": "CoinDesk", "uid": uid}
     except Exception as ex:
         print(f"[CoinDesk error] {ex}")
     return None
@@ -116,8 +138,7 @@ def fetch_theblock() -> dict | None:
             if uid in posted_ids:
                 continue
             if is_relevant(e.get("title", ""), e.get("summary", "")):
-                posted_ids.add(uid)
-                return {"title": e["title"], "link": e.get("link", ""), "source": "The Block"}
+                return {"title": e["title"], "link": e.get("link", ""), "source": "The Block", "uid": uid}
     except Exception as ex:
         print(f"[TheBlock error] {ex}")
     return None
@@ -146,27 +167,35 @@ def format_message(article: dict) -> str:
     )
 
 # ─────────────────────────────────────────────
-# SCHEDULE
+# POST — locked so only 1 post happens at a time
 # ─────────────────────────────────────────────
 
 bot = Bot(token=TOKEN)
 
 async def post_article():
-    article = get_next_article()
-    if not article:
-        print("[Scheduled] Nothing relevant found.")
-        return
-    msg = format_message(article)
-    print(f"[POST] {article['title'][:70]}")
-    try:
-        await bot.send_message(
-            chat_id=CHAT_ID,
-            text=msg,
-            parse_mode="Markdown",
-            disable_web_page_preview=False
-        )
-    except Exception as e:
-        print(f"[Post error] {e}")
+    async with post_lock:
+        article = get_next_article()
+        if not article:
+            print("[Scheduled] Nothing new found.")
+            return
+        msg = format_message(article)
+        print(f"[POST] {article['title'][:70]}")
+        try:
+            await bot.send_message(
+                chat_id=CHAT_ID,
+                text=msg,
+                parse_mode="Markdown",
+                disable_web_page_preview=False
+            )
+            # Only mark as posted AFTER successful send
+            posted_ids.add(article["uid"])
+            save_posted(posted_ids)
+        except Exception as e:
+            print(f"[Post error] {e}")
+
+# ─────────────────────────────────────────────
+# SCHEDULE
+# ─────────────────────────────────────────────
 
 async def schedule_loop():
     posted_this_hour = set()
