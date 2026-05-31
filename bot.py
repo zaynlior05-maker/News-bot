@@ -1,3 +1,6 @@
+SESSION_STRING = "1AZWarzcBu2t4j85CQbnMUuyIS5PqPfRNv8aN3GxTYTTzGqjCjRAZ6FwA8FxaeZxVMpDKz-aZqCSWKLtrbQKE1cXe4aTGvSxS0smmP_0OH5LIk6FCp6DuP-rjLmooY2i8cgkAHWSD6-QCXY-hLjyQpnTwKw8mvpnXg2sT_kAzWYclVhzzDOgJGrdleWQiy_euUiALAYFYwL8DUuNo5PFb0LrI3n5qU7Tqjf-d7ZoUtRWMQth12IcsBR1MmnFRaTYc75EYyRDHsDDv8xELVQhJdsnygSmxIVas5fKtgDobLW-hNDuEBgcWsGq3UMEswb7bg_2KacYsWCY171f6BlolXs3N-DrCBk0="SESSION_STRING = "1AZWarzcBu2t4j85CQbnMUuyIS5PqPfRNv8aN3GxTYTTzGqjCjRAZ6FwA8FxaeZxVMpDKz-aZqCSWKLtrbQKE1cXe4aTGvSxS0smmP_0OH5LIk6FCp6DuP-rjLmooY2i8cgkAHWSD6-QCXY-hLjyQpnTwKw8mvpnXg2sT_kAzWYclVhzzDOgJGrdleWQiy_euUiALAYFYwL8DUuNo5PFb0LrI3n5qU7Tqjf-d7ZoUtRWMQth12IcsBR1MmnFRaTYc75EYyRDHsDDv8xELVQhJdsnygSmxIVas5fKtgDobLW-hNDuEBgcWsGq3UMEswb7bg_2KacYsWCY171f6BlolXs3N-DrCBk0="
+
+
 import requests
 import asyncio
 import feedparser
@@ -5,27 +8,25 @@ import random
 from datetime import datetime
 from telegram import Bot
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
 # ─────────────────────────────────────────────
-# CONFIG — only 5 things to fill in
+# ⚠️ FILL IN THESE 5 THINGS ONLY
 # ─────────────────────────────────────────────
 
-TOKEN          = "8749522431:AAHycEzpn-ydZEOU20TDU1uRklXoSj0pMBs"      # from @BotFather
-CHAT_ID        = "-1003297925821"       # your channel e.g. -1002xxxxxxx
-API_ID         = 32999267                    # from my.telegram.org/apps
-SESSION_STRING = "1AZWarzcBu2t4j85CQbnMUuyIS5PqPfRNv8aN3GxTYTTzGqjCjRAZ6FwA8FxaeZxVMpDKz-aZqCSWKLtrbQKE1cXe4aTGvSxS0smmP_0OH5LIk6FCp6DuP-rjLmooY2i8cgkAHWSD6-QCXY-hLjyQpnTwKw8mvpnXg2sT_kAzWYclVhzzDOgJGrdleWQiy_euUiALAYFYwL8DUuNo5PFb0LrI3n5qU7Tqjf-d7ZoUtRWMQth12IcsBR1MmnFRaTYc75EYyRDHsDDv8xELVQhJdsnygSmxIVas5fKtgDobLW-hNDuEBgcWsGq3UMEswb7bg_2KacYsWCY171f6BlolXs3N-DrCBk0="
-API_HASH       = "b5e284bcd42eeca07957dc118b59382a"      # from my.telegram.org/apps
-YOUR_HANDLE = "@HeisenUpdates | @HeisenCE0"
+TOKEN          = "8749522431:AAHycEzpn-ydZEOU20TDU1uRklXoSj0pMBs"
+CHAT_ID        = "-1003297925821"
+API_ID         = 32999267
+API_HASH       = "b5e284bcd42eeca07957dc118b59382a"
+SESSION_STRING = "1AZWarzcBu2t4j85CQbnMUuyIS5PqPfRNv8aN3GxTYTTzGqjCjRAZ6FwA8FxaeZxVMpDKz-aZqCSWKLtrbQKE1cXe4aTGvSxS0smmP_0OH5LIk6FCp6DuP-rjLmooY2i8cgkAHWSD6-QCXY-hLjyQpnTwKw8mvpnXg2sT_kAzWYclVhzzDOgJGrdleWQiy_euUiALAYFYwL8DUuNo5PFb0LrI3n5qU7Tqjf-d7ZoUtRWMQth12IcsBR1MmnFRaTYc75EYyRDHsDDv8xELVQhJdsnygSmxIVas5fKtgDobLW-hNDuEBgcWsGq3UMEswb7bg_2KacYsWCY171f6BlolXs3N-DrCBk0="SESSION_STRING = "1AZWarzcBu2t4j85CQbnMUuyIS5PqPfRNv8aN3GxTYTTzGqjCjRAZ6FwA8FxaeZxVMpDKz-aZqCSWKLtrbQKE1cXe4aTGvSxS0smmP_0OH5LIk6FCp6DuP-rjLmooY2i8cgkAHWSD6-QCXY-hLjyQpnTwKw8mvpnXg2sT_kAzWYclVhzzDOgJGrdleWQiy_euUiALAYFYwL8DUuNo5PFb0LrI3n5qU7Tqjf-d7ZoUtRWMQth12IcsBR1MmnFRaTYc75EYyRDHsDDv8xELVQhJdsnygSmxIVas5fKtgDobLW-hNDuEBgcWsGq3UMEswb7bg_2KacYsWCY171f6BlolXs3N-DrCBk0="
 
+# ─────────────────────────────────────────────
+# YOUR HANDLES
+# ─────────────────────────────────────────────
 
-
+YOUR_HANDLE    = "HeisenUpdates | @HeisenCE0"
 SOURCE_CHANNEL = "DWCusers"
-
-# ─────────────────────────────────────────────
-# SCHEDULE — posts at these hours daily
-# ─────────────────────────────────────────────
-
-POST_HOURS = [8, 11, 14, 17, 20, 23, 2, 5]
+POST_HOURS     = [8, 11, 14, 17, 20, 23, 2, 5]
 
 # ─────────────────────────────────────────────
 # KEYWORDS
@@ -59,13 +60,12 @@ def is_relevant(title: str, summary: str = "") -> bool:
     return any(kw in text for kw in KEEP_KEYWORDS)
 
 # ─────────────────────────────────────────────
-# NEWS SOURCES (all free, no API key needed)
+# NEWS SOURCES (all free)
 # ─────────────────────────────────────────────
 
 posted_ids = set()
 
 def fetch_rekt() -> dict | None:
-    """Rekt.news — DeFi exploits only."""
     try:
         feed = feedparser.parse("https://rekt.news/feed/")
         entries = feed.entries[:]
@@ -82,7 +82,6 @@ def fetch_rekt() -> dict | None:
     return None
 
 def fetch_cointelegraph() -> dict | None:
-    """CoinTelegraph RSS."""
     try:
         feed = feedparser.parse("https://cointelegraph.com/rss")
         entries = feed.entries[:]
@@ -99,7 +98,6 @@ def fetch_cointelegraph() -> dict | None:
     return None
 
 def fetch_coindesk() -> dict | None:
-    """CoinDesk RSS."""
     try:
         feed = feedparser.parse("https://www.coindesk.com/arc/outboundfeeds/rss/")
         entries = feed.entries[:]
@@ -116,7 +114,6 @@ def fetch_coindesk() -> dict | None:
     return None
 
 def fetch_theblock() -> dict | None:
-    """The Block RSS — covers hacks, SEC, arrests."""
     try:
         feed = feedparser.parse("https://www.theblock.co/rss/all")
         entries = feed.entries[:]
@@ -142,7 +139,7 @@ def get_next_article() -> dict | None:
     return None
 
 # ─────────────────────────────────────────────
-# FORMAT
+# FORMAT MESSAGE
 # ─────────────────────────────────────────────
 
 def format_message(article: dict) -> str:
@@ -156,7 +153,7 @@ def format_message(article: dict) -> str:
     )
 
 # ─────────────────────────────────────────────
-# SCHEDULED LOOP
+# BOT + SCHEDULE
 # ─────────────────────────────────────────────
 
 bot = Bot(token=TOKEN)
@@ -180,11 +177,13 @@ async def post_article():
 
 async def schedule_loop():
     posted_this_hour = set()
+    print("[Startup] Posting first article now...")
+    await post_article()
     while True:
         now = datetime.now()
         hr  = now.hour
         if hr in POST_HOURS and hr not in posted_this_hour:
-            print(f"[{now.strftime('%H:%M')}] Posting...")
+            print(f"[{now.strftime('%H:%M')}] Scheduled post...")
             await post_article()
             posted_this_hour.add(hr)
         if hr == 0 and len(posted_this_hour) > 1:
@@ -195,7 +194,7 @@ async def schedule_loop():
 # DWC MONITOR
 # ─────────────────────────────────────────────
 
-reader = TelegramClient("heisen_reader", API_ID, API_HASH)
+reader = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 
 NEWS_TRIGGERS = [
     "just in", "breaking", "update:", "⚠️", "🚨",
