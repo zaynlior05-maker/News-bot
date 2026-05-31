@@ -12,7 +12,7 @@ from telethon import TelegramClient, events
 
 TOKEN          = "8749522431:AAHycEzpn-ydZEOU20TDU1uRklXoSj0pMBs"      # from @BotFather
 CHAT_ID        = "-1003297925821"       # your channel e.g. -1002xxxxxxx
-API_ID         = 0                    # from my.telegram.org/apps
+API_ID         = 32999267                    # from my.telegram.org/apps
 API_HASH       = "b5e284bcd42eeca07957dc118b59382a"      # from my.telegram.org/apps
 YOUR_HANDLE = "@HeisenUpdates | @HeisenCE0"
 
